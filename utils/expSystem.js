@@ -13,7 +13,7 @@ const addExp = async (userId, member, amount) => {
     if (newLevel > user.roleLevel) {
         user.roleLevel = newLevel;
         // Logic add role Discord thực tế ở đây
-        // const roleId = 'YOUR_ROLE_ID';
+        // const roleId = '1465376279145484389';
         // await member.roles.add(roleId);
     }
     
