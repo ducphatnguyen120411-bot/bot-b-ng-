@@ -1,93 +1,69 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 const mongoose = require('mongoose');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 
-const { initDailySchedule } = require('./jobs/dailySchedule');
-const { initAutoLive } = require('./jobs/autoLive');
-
-// 1. Setup Express cho Render (Giữ bot sống 24/7)
+// --- 1. SETUP EXPRESS (Giữ Bot online trên Render) ---
 const app = express();
 app.get('/', (req, res) => res.send('Bot trạng thái: ONLINE 🟢'));
 app.listen(process.env.PORT || 3000, () => console.log('🌍 Web server sẵn sàng!'));
 
-// 2. Kết nối DB
+// --- 2. KẾT NỐI DATABASE ---
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✅ Đã kết nối Database'))
+    .then(() => console.log('✅ Đã kết nối Database thành công!'))
     .catch(err => console.error('❌ Lỗi Database:', err));
 
-// 3. Khởi tạo Bot (THÊM QUYỀN ĐỌC TIN NHẮN)
+// --- 3. KHỞI TẠO BOT (CẤP FULL QUYỀN ĐỌC TIN NHẮN) ---
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds, 
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent // Bắt buộc phải có để dùng lệnh !
+        GatewayIntentBits.MessageContent // Quyền sinh tử để đọc lệnh có dấu !
     ] 
 });
 
-client.commands = new Collection();
-
-// 4. NẠP LỆNH SLASH TỰ ĐỘNG (Giữ nguyên nhưng thêm chống lỗi)
-const commandsPath = path.join(__dirname, 'commands');
-if (fs.existsSync(commandsPath)) {
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    for (const file of commandFiles) {
-        const command = require(path.join(commandsPath, file));
-        if ('data' in command && 'execute' in command) {
-            client.commands.set(command.data.name, command);
-        }
-    }
-}
-
-// 5. NẠP SỰ KIỆN TỰ ĐỘNG (Giữ nguyên nhưng thêm chống lỗi)
-const eventsPath = path.join(__dirname, 'events');
-if (fs.existsSync(eventsPath)) {
-    const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-    for (const file of eventFiles) {
-        const event = require(path.join(eventsPath, file));
-        if (event.once) {
-            client.once(event.name, (...args) => event.execute(...args, client));
-        } else {
-            client.on(event.name, (...args) => event.execute(...args, client));
-        }
-    }
-}
-
-// ==========================================
-// 6. HỆ THỐNG LỆNH CỔ ĐIỂN (PREFIX COMMANDS)
-// ==========================================
+// --- 4. HỆ THỐNG LỆNH GÕ TRỰC TIẾP (PREFIX) ---
 const PREFIX = '!'; 
 
 client.on('messageCreate', async (message) => {
-    // Bỏ qua tin nhắn của bot khác hoặc không bắt đầu bằng !
+    // Bỏ qua tin nhắn của bot khác hoặc không có dấu !
     if (!message.content.startsWith(PREFIX) || message.author.bot) return;
 
+    // Tách lệnh và tham số
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // Gõ: !rank
+    // 🟢 Lệnh Test (Gõ !ping)
+    if (command === 'ping') {
+        return message.reply('🏓 Pong! Bot đang hoạt động cực mượt!');
+    }
+
+    // 🟢 Lệnh Rank (Gõ !rank)
     if (command === 'rank') {
-        message.reply(`📊 Đang load dữ liệu siêu cấp VIP cho **${message.author.username}**...`);
-        // Nơi bạn chèn code làm thẻ ảnh Rank sau này
+        return message.reply(`📊 Đang load dữ liệu siêu cấp VIP cho **${message.author.username}**...`);
     }
 
-    // Gõ: !vote
+    // 🟢 Lệnh Vote (Gõ !vote)
     if (command === 'vote') {
-        message.channel.send('🔥 Đang tạo bảng dự đoán kết quả trận đấu...');
-        // Nơi bạn chèn code tạo bảng Vote
+        return message.channel.send('🔥 Đang tạo bảng dự đoán kết quả trận đấu hôm nay...');
     }
 });
 
-// 7. KÍCH HOẠT JOBS KHI BOT ĐÃ SẴN SÀNG
+// --- 5. CHẠY JOBS (LỊCH TỰ ĐỘNG) ---
 client.once('ready', () => {
-    console.log(`🤖 Bot ${client.user.tag} đã lên sóng!`);
+    console.log(`🤖 Bot ${client.user.tag} đã lên sóng và sẵn sàng nhận lệnh!`);
     
-    // Kích hoạt lịch tự động gửi tin nhắn
-    initDailySchedule(client);
-    initAutoLive(client);
+    // Bọc trong try-catch để nếu file jobs lỗi thì bot vẫn sống
+    try {
+        const { initDailySchedule } = require('./jobs/dailySchedule');
+        const { initAutoLive } = require('./jobs/autoLive');
+        initDailySchedule(client);
+        initAutoLive(client);
+        console.log('✅ Đã kích hoạt hệ thống Lịch tự động!');
+    } catch (error) {
+        console.log('⚠️ Không tìm thấy hoặc lỗi file Jobs, đang bỏ qua phần tự động...');
+    }
 });
 
-// Khởi động Bot
+// --- 6. ĐĂNG NHẬP BOT ---
 client.login(process.env.TOKEN);
