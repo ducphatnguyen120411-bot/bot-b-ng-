@@ -11,8 +11,6 @@ for (const file of commandFiles) {
     const command = require(path.join(commandsPath, file));
     if ('data' in command && 'execute' in command) {
         commands.push(command.data.toJSON());
-    } else {
-        console.log(`[CẢNH BÁO] Lệnh tại ${file} thiếu thuộc tính "data" hoặc "execute".`);
     }
 }
 
@@ -20,13 +18,16 @@ const rest = new REST().setToken(process.env.TOKEN);
 
 (async () => {
     try {
-        console.log(`Đang làm mới ${commands.length} lệnh Slash (/) ứng dụng...`);
+        console.log(`⏳ Đang báo cáo ${commands.length} lệnh Slash (/) lên Discord...`);
+
+        // Đăng ký lệnh trên toàn bộ các server có bot
         const data = await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID),
+            Routes.applicationCommands(process.env.CLIENT_ID), 
             { body: commands },
         );
-        console.log(`✅ Đã nạp thành công ${data.length} lệnh Slash!`);
+
+        console.log(`✅ Đăng ký thành công ${data.length} lệnh! (Mất 1-3 phút để Discord cập nhật menu)`);
     } catch (error) {
-        console.error(error);
+        console.error('❌ Lỗi đăng ký lệnh:', error);
     }
 })();
